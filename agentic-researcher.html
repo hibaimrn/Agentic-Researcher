@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Researcher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+  :root {
+    --ink: #0e1620;
+    --panel: #16222f;
+    --panel-edge: #24384c;
+    --text: #dce6ef;
+    --text-dim: #8fa3b5;
+    --teal: #4fd8c0;
+    --amber: #f0b453;
+    --violet: #a78bfa;
+    --red: #ef7a70;
+    --paper: #faf8f3;
+    --paper-ink: #26313c;
+    --paper-dim: #6b7684;
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ink); color: var(--text); font-family: var(--sans); min-height: 100vh; padding: 24px; }
+  .shell { max-width: 1280px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header h1 .dot { color: var(--violet); }
+  header .tag { font-family: var(--mono); font-size: 11px; color: var(--text-dim); border: 1px solid var(--panel-edge); padding: 3px 8px; border-radius: 999px; }
+
+  .grid { display: grid; grid-template-columns: 420px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: var(--radius); }
+  .panel .head { padding: 12px 16px; border-bottom: 1px solid var(--panel-edge); font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); display: flex; justify-content: space-between; align-items: center; }
+  .panel .body { padding: 16px; }
+
+  label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  input[type="password"], textarea, select {
+    width: 100%; background: var(--ink); color: var(--text);
+    border: 1px solid var(--panel-edge); border-radius: 6px;
+    padding: 10px 12px; font-size: 14px; font-family: var(--sans);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; }
+  .row .field { flex: 1; }
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 5px; line-height: 1.5; }
+
+  button { cursor: pointer; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; padding: 11px 16px; font-family: var(--sans); }
+  .btn-run { width: 100%; background: var(--violet); color: #1d1140; }
+  .btn-run:hover { filter: brightness(1.08); }
+  .btn-run:disabled { background: var(--panel-edge); color: var(--text-dim); cursor: not-allowed; }
+  .btn-stop { width: 100%; background: transparent; color: var(--red); border: 1px solid var(--red); margin-top: 8px; display: none; }
+
+  .stats { display: flex; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .stats span b { color: var(--amber); font-weight: 600; }
+
+  /* trace */
+  .trace { margin-top: 20px; }
+  .trace .body { max-height: 480px; overflow-y: auto; font-family: var(--mono); font-size: 12px; line-height: 1.65; }
+  .ev { padding: 7px 10px; border-radius: 6px; margin-bottom: 6px; border: 1px solid transparent; word-break: break-word; }
+  .ev .kind { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .ev.think { border-color: #2a3a4d; color: var(--text-dim); font-style: italic; }
+  .ev.think .kind { color: var(--text-dim); }
+  .ev.tool { border-color: rgba(240,180,83,0.35); }
+  .ev.tool .kind { color: var(--amber); }
+  .ev.result { border-color: rgba(79,216,192,0.3); color: var(--text-dim); }
+  .ev.result .kind { color: var(--teal); }
+  .ev.final .kind { color: var(--violet); }
+  .ev.final { border-color: rgba(167,139,250,0.4); }
+  .ev.err { border-color: rgba(239,122,112,0.5); }
+  .ev.err .kind { color: var(--red); }
+  .ev.running::after { content: "..."; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  /* report */
+  .report-panel { background: var(--paper); border-radius: var(--radius); border: 1px solid #e4dfd3; min-height: 480px; display: flex; flex-direction: column; }
+  .report-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #e4dfd3; }
+  .report-head .label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--paper-dim); }
+  .report-actions { display: flex; gap: 8px; }
+  .report-actions button { background: transparent; border: 1px solid #d8d2c4; color: #5a6472; font-size: 12px; padding: 6px 12px; }
+  .report-actions button:hover { border-color: var(--paper-ink); color: var(--paper-ink); }
+
+  .report { padding: 32px 40px 48px; color: var(--paper-ink); font-family: var(--serif); font-size: 16px; line-height: 1.75; overflow-wrap: break-word; }
+  @media (max-width: 600px) { .report { padding: 24px 20px 36px; } body { padding: 14px; } }
+  .report .empty { color: var(--paper-dim); font-family: var(--sans); font-size: 14px; text-align: center; padding: 90px 20px; }
+  .report h1 { font-size: 28px; line-height: 1.25; margin-bottom: 16px; }
+  .report h2 { font-size: 21px; margin: 30px 0 10px; }
+  .report h3 { font-size: 17px; margin: 22px 0 8px; }
+  .report p { margin-bottom: 14px; }
+  .report ul, .report ol { margin: 0 0 14px 26px; }
+  .report li { margin-bottom: 6px; }
+  .report a { color: #1c6fae; }
+  .report code { font-family: var(--mono); font-size: 13px; background: #efece3; padding: 1px 5px; border-radius: 4px; }
+  .report pre { background: #efece3; padding: 14px; border-radius: 6px; overflow-x: auto; margin-bottom: 14px; }
+  .report blockquote { border-left: 3px solid #d8d2c4; padding-left: 14px; color: #4d5866; margin-bottom: 14px; }
+  .report table { border-collapse: collapse; margin-bottom: 16px; width: 100%; font-family: var(--sans); font-size: 14px; }
+  .report th { background: #2d3748; color: #fff; padding: 8px 10px; text-align: left; }
+  .report td { padding: 8px 10px; border: 1px solid #e2e8f0; }
+  .report tr:nth-child(odd) td { background: #f7fafc; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>Agentic Researcher<span class="dot">.</span></h1>
+    <span class="tag">model-driven loop: the LLM decides every step</span>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="panel">
+        <div class="head">Configuration</div>
+        <div class="body">
+          <div class="field">
+            <label for="apiKey">OpenAI API key</label>
+            <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+            <div class="hint">Sent only to api.openai.com from your browser. Not stored anywhere. Cleared on refresh.</div>
+          </div>
+          <div class="field">
+            <label for="topic">Research goal</label>
+            <textarea id="topic" placeholder="e.g. Compare current approaches to evaluating RAG pipelines and recommend one for a small team"></textarea>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="model">Model</label>
+              <select id="model">
+                <option value="gpt-4o-mini">gpt-4o-mini (cheap)</option>
+                <option value="gpt-4o" selected>gpt-4o</option>
+                <option value="gpt-4.1">gpt-4.1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="maxSteps">Step budget</label>
+              <select id="maxSteps">
+                <option value="10">10</option>
+                <option value="15" selected>15</option>
+                <option value="25">25</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn-run" id="runBtn">Deploy agent</button>
+          <button class="btn-stop" id="stopBtn">Stop</button>
+        </div>
+      </section>
+
+      <section class="panel trace">
+        <div class="head">
+          <span>Agent trace</span>
+          <span class="stats"><span>step <b id="stepCount">0</b></span><span>searches <b id="searchCount">0</b></span><span>notes <b id="noteCount">0</b></span></span>
+        </div>
+        <div class="body" id="trace">
+          <div class="ev think"><span class="kind">idle</span>Waiting for deployment. The agent will decide its own searches, notes, reflection, and when to finish.</div>
+        </div>
+      </section>
+    </div>
+
+    <section class="report-panel">
+      <div class="report-head">
+        <span class="label">Report</span>
+        <div class="report-actions">
+          <button id="copyBtn">Copy markdown</button>
+          <button id="dlBtn">Download .md</button>
+        </div>
+      </div>
+      <div class="report" id="report">
+        <div class="empty">The agent writes here when it decides its research is complete.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const traceEl = $("trace"), reportEl = $("report");
+  const runBtn = $("runBtn"), stopBtn = $("stopBtn");
+  let controller = null;
+  let reportMarkdown = "";
+  let counts = { step: 0, search: 0, note: 0 };
+
+  function bump(k) { counts[k]++; $(k + "Count").textContent = counts[k]; }
+  function resetCounts() { counts = { step: 0, search: 0, note: 0 }; ["step","search","note"].forEach(k => $(k + "Count").textContent = "0"); }
+
+  function ev(kind, cls, text, running = false) {
+    const div = document.createElement("div");
+    div.className = "ev " + cls + (running ? " running" : "");
+    const k = document.createElement("span");
+    k.className = "kind"; k.textContent = kind;
+    div.appendChild(k);
+    div.appendChild(document.createTextNode(text));
+    traceEl.appendChild(div);
+    traceEl.scrollTop = traceEl.scrollHeight;
+    return div;
+  }
+  function settle(div) { div.classList.remove("running"); }
+
+  // ---------------- tools the agent can use ----------------
+  const toolSchemas = [
+    {
+      type: "function",
+      function: {
+        name: "web_search",
+        description: "Search the web for current information. Returns a summary of findings with source URLs. Use focused queries. You may call this as many times as needed, and refine queries based on what you learn.",
+        parameters: {
+          type: "object",
+          properties: { query: { type: "string", description: "A focused search query" } },
+          required: ["query"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "save_note",
+        description: "Save an important finding to your research scratchpad so it is preserved for the final report. Include the source URL if known.",
+        parameters: {
+          type: "object",
+          properties: {
+            note: { type: "string", description: "The finding, concrete and specific" },
+            source: { type: "string", description: "Source URL or name, if any" }
+          },
+          required: ["note"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "read_notes",
+        description: "Read back everything currently in your scratchpad. Useful before reflecting on coverage gaps or writing the report.",
+        parameters: { type: "object", properties: {} }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "write_report",
+        description: "Finish the research and deliver the final report. Only call this when you are confident coverage is sufficient. This ends the run.",
+        parameters: {
+          type: "object",
+          properties: {
+            markdown: { type: "string", description: "The complete final report in markdown: # title, executive summary, themed sections, conclusion, ## Sources section with URLs." }
+          },
+          required: ["markdown"]
+        }
+      }
+    }
+  ];
+
+  // web_search implementation: delegate to Responses API hosted search
+  async function execWebSearch(key, query, signal) {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input: "Search the web and summarize current, factual findings for this query. Include concrete facts, numbers, and dates, and list source URLs.\n\nQuery: " + query,
+        tools: [{ type: "web_search_preview" }]
+      }),
+      signal
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) || ("search failed: HTTP " + res.status));
+    }
+    const data = await res.json();
+    let text = "", urls = [];
+    for (const item of data.output || []) {
+      if (item.type === "message") {
+        for (const c of item.content || []) {
+          if (c.type === "output_text") {
+            text += c.text;
+            for (const a of c.annotations || []) {
+              if (a.type === "url_citation" && a.url && !urls.includes(a.url)) urls.push(a.url);
+            }
+          }
+        }
+      }
+    }
+    if (urls.length) text += "\n\nSource URLs:\n" + urls.join("\n");
+    return text || "No results returned.";
+  }
+
+  // ---------------- the agent loop ----------------
+  async function run() {
+    const key = $("apiKey").value.trim();
+    const topic = $("topic").value.trim();
+    const model = $("model").value;
+    const maxSteps = parseInt($("maxSteps").value, 10);
+
+    if (!key) { alert("Enter your OpenAI API key."); return; }
+    if (!topic) { alert("Enter a research goal."); return; }
+
+    controller = new AbortController();
+    const signal = controller.signal;
+    runBtn.disabled = true;
+    stopBtn.style.display = "block";
+    traceEl.innerHTML = "";
+    reportEl.innerHTML = '<div class="empty">Agent is working...</div>';
+    reportMarkdown = "";
+    resetCounts();
+
+    const notes = [];
+    const systemPrompt =
+      "You are an autonomous research agent. Your goal is to research the user's topic thoroughly and produce an excellent report.\n\n" +
+      "You decide your own strategy. A strong pattern is: think about what you need to know, search, save concrete findings as notes, notice gaps or contradictions, search again to fill them, and only when coverage is genuinely sufficient, read your notes and call write_report.\n\n" +
+      "Rules:\n" +
+      "- Before each tool call, state your reasoning in one or two short sentences (this is shown to the user as your thinking).\n" +
+      "- Prefer several focused searches over one broad one. Refine queries based on results.\n" +
+      "- Save notes for anything you will need later; the report must be grounded in your notes and search results, never invented.\n" +
+      "- If two sources conflict, search again to resolve it and note the disagreement.\n" +
+      "- You have a budget of " + maxSteps + " reasoning steps. Plan so you finish with write_report before the budget runs out. You will be warned when the budget is nearly exhausted.\n" +
+      "- The report: markdown, # title, executive summary, themed sections organized by insight, conclusion, and a ## Sources section with URLs. American English. No em dashes.";
+
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "Research goal: " + topic }
+    ];
+
+    try {
+      let finished = false;
+      while (!finished) {
+        if (counts.step >= maxSteps) {
+          // Budget exhausted: force a final report from whatever it has
+          ev("budget", "err", "Step budget exhausted. Forcing report from current notes.");
+          messages.push({ role: "user", content: "STOP. Your step budget is exhausted. Call write_report NOW with the best report you can produce from your notes and findings so far." });
+        } else if (counts.step === maxSteps - 3) {
+          messages.push({ role: "user", content: "Warning: only 3 steps remain in your budget. Wrap up and call write_report soon." });
+        }
+        bump("step");
+
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+          body: JSON.stringify({
+            model,
+            messages,
+            tools: toolSchemas,
+            tool_choice: counts.step > maxSteps ? { type: "function", function: { name: "write_report" } } : "auto",
+            parallel_tool_calls: false
+          }),
+          signal
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err.error && err.error.message) || ("HTTP " + res.status));
+        }
+        const data = await res.json();
+        const msg = data.choices[0].message;
+        messages.push(msg);
+
+        // Show the agent's reasoning text, if any
+        if (msg.content && msg.content.trim()) {
+          ev("agent thinking", "think", msg.content.trim());
+        }
+
+        const calls = msg.tool_calls || [];
+        if (!calls.length) {
+          // Model answered in plain text without finishing properly; treat as report if substantial
+          if (msg.content && msg.content.length > 400) {
+            reportMarkdown = msg.content;
+            finished = true;
+            ev("final", "final", "Agent delivered the report as plain text.");
+          } else {
+            messages.push({ role: "user", content: "Continue your research using your tools, or call write_report if you are done." });
+          }
+          continue;
+        }
+
+        for (const call of calls) {
+          let args = {};
+          try { args = JSON.parse(call.function.arguments || "{}"); } catch (e) {}
+          const name = call.function.name;
+          let result = "";
+
+          if (name === "web_search") {
+            bump("search");
+            const box = ev("tool: web_search", "tool", '"' + (args.query || "") + '"', true);
+            try {
+              result = await execWebSearch(key, args.query || topic, signal);
+              settle(box);
+              ev("result", "result", result.length > 400 ? result.slice(0, 400) + " [truncated in trace, full text given to agent]" : result);
+            } catch (e) {
+              if (e.name === "AbortError") throw e;
+              settle(box);
+              result = "Search error: " + e.message + ". You may retry with a different query or proceed without it.";
+              ev("error", "err", result);
+            }
+          } else if (name === "save_note") {
+            bump("note");
+            notes.push({ note: args.note || "", source: args.source || "" });
+            result = "Saved. You now have " + notes.length + " notes.";
+            ev("tool: save_note", "tool", (args.note || "").slice(0, 220) + (args.source ? "  [" + args.source + "]" : ""));
+          } else if (name === "read_notes") {
+            result = notes.length
+              ? notes.map((n, i) => (i + 1) + ". " + n.note + (n.source ? " (Source: " + n.source + ")" : "")).join("\n")
+              : "Scratchpad is empty.";
+            ev("tool: read_notes", "tool", "Reading " + notes.length + " notes back into context.");
+          } else if (name === "write_report") {
+            reportMarkdown = args.markdown || "";
+            result = "Report delivered.";
+            finished = true;
+            ev("final", "final", "Agent decided research is complete. Report delivered after " + counts.step + " steps, " + counts.search + " searches, " + counts.note + " notes.");
+          } else {
+            result = "Unknown tool.";
+          }
+
+          messages.push({ role: "tool", tool_call_id: call.id, content: result });
+          if (finished) break;
+        }
+      }
+
+      reportEl.innerHTML = marked.parse(reportMarkdown || "*Empty report.*");
+    } catch (e) {
+      if (e.name === "AbortError") {
+        ev("stopped", "err", "Run stopped by user.");
+        if (!reportMarkdown) reportEl.innerHTML = '<div class="empty">Run stopped.</div>';
+      } else {
+        ev("error", "err", e.message);
+        reportEl.innerHTML = '<div class="empty">Something went wrong. Check the trace.</div>';
+      }
+    } finally {
+      runBtn.disabled = false;
+      stopBtn.style.display = "none";
+      controller = null;
+    }
+  }
+
+  runBtn.addEventListener("click", run);
+  stopBtn.addEventListener("click", () => controller && controller.abort());
+
+  $("copyBtn").addEventListener("click", async () => {
+    if (!reportMarkdown) return;
+    await navigator.clipboard.writeText(reportMarkdown);
+    $("copyBtn").textContent = "Copied";
+    setTimeout(() => $("copyBtn").textContent = "Copy markdown", 1500);
+  });
+
+  $("dlBtn").addEventListener("click", () => {
+    if (!reportMarkdown) return;
+    const blob = new Blob([reportMarkdown], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "research-report.md";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+})();
+</script>
+</body>
+</html>
